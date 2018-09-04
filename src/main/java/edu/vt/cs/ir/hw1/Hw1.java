@@ -17,8 +17,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class Hw1 {
-    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus";
-//    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus_small";
+//    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus";
+    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus_med";
 
     public static void main(String[] args) {
         System.out.println("Hello Stephen Lasky.");
@@ -181,10 +181,16 @@ public class Hw1 {
                 System.out.println("processed " + Float.toString((float) i / (float)inputSize) + "/1.00");
                 nextAlertInc += alertInc;
             }
+
+            /* exit early?? */ // todo: REMOVE
+            if (documents.size() == 10000)
+                break;
+
         }
 
-        System.exit(0);
-        System.out.println("Exiting...");
+        /* only used for processing-only early  termination */
+//        System.exit(0);
+//        System.out.println("Exiting...");
 
         /* print some test stuff */
 //        Document testDoc = documents.get(0);

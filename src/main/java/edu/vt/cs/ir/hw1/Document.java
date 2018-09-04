@@ -15,7 +15,7 @@ public class Document {
         this.text = text;
         this.textLen = text.length();
 
-//        this.tokenize();
+        this.tokenize();
     }
 
     private void tokenize() {
