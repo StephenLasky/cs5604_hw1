@@ -11,14 +11,11 @@ package edu.vt.cs.ir.hw1;
 //import java.io.BufferedReader;
 import java.io.*;
 import java.lang.reflect.Array;
-import java.util.ArrayList;
-import java.util.Dictionary;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class Hw1 {
-//    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus";
-    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus_med";
+    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus";
+//    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus_med";
 
     public static void main(String[] args) {
         System.out.println("Hello Stephen Lasky.");
@@ -102,17 +99,23 @@ public class Hw1 {
     }
     private static int findNextMatch(String find, int start) {
 //        System.out.println("Trying out (" + find + ") " + Integer.toString(start));
+        int findLength = find.length();
+        char[] findArr = find.toCharArray();
 
         int i;
         while (true) {
-            for (i=0; i<find.length(); i++) {
-                if (input[start+i] != find.charAt(i)){
-                    break;
-                }
-            }
+//            for (i=0; i<findLength; i++) {
+//                if (input[start+i] != findArr[i]){
+//                    break;
+//                }
+//            }
+//
+//            if (i == findLength) {
+////                System.out.println(find + " @ " + Integer.toString(start));   // todo: only here for debugging
+//                return start;
+//            }
 
-            if (i == find.length()) {
-//                System.out.println(find + " @ " + Integer.toString(start));   // todo: only here for debugging
+            if (Arrays.equals(findArr, Arrays.copyOfRange(input, start, start + findLength))) {
                 return start;
             }
 
@@ -183,7 +186,7 @@ public class Hw1 {
             }
 
             /* exit early?? */ // todo: REMOVE
-            if (documents.size() == 10000)
+            if (documents.size() == 25000)
                 break;
 
         }
