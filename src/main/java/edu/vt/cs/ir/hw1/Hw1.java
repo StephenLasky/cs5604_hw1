@@ -21,6 +21,7 @@ public class Hw1 {
         System.out.println("Hello Stephen Lasky.");
 
         part1();
+        part1_2();
 
     }
 
@@ -44,24 +45,6 @@ public class Hw1 {
         /* get file length and initialize char array */
         File file = new File(FILEPATH);
         inputSize = file.length();
-
-        /* count null characters */
-        try {
-            int numberOfLines = 0;
-            BufferedReader reader = new BufferedReader(new FileReader(file));
-            String line = null;
-            while ((line = reader.readLine()) !=null) {
-                numberOfLines += 1;
-            }
-
-            inputSize += numberOfLines;
-            System.out.println("Adding " + Integer.toString(numberOfLines) + " to " + Long.toString(inputSize));
-        } catch (FileNotFoundException e) {
-            // File not found
-        } catch (IOException e) {
-            // Couldn't read the file
-        }
-
         input = new char[(int)inputSize];
         int i = 0;
 
@@ -83,15 +66,10 @@ public class Hw1 {
             while((line = bufferedReader.readLine()) != null) {
                 // place string into character array
                 for (int j=0; j < line.length(); j++) {
-                    System.out.println("i:" + Integer.toString(i) + " j: " + Integer.toString(j));
+//                    System.out.println("i:" + Integer.toString(i) + " j: " + Integer.toString(j));
                     input[i] = line.charAt(j);
                     i++;
                 }
-                if (i+1 >= inputSize)
-                    System.out.println("Attempted to falsely place newline char.");
-                else
-                    input[++i] = ' ';
-
             }
 
             // Always close files.
@@ -147,6 +125,7 @@ public class Hw1 {
     }
 
     public static void part1() {
+        final long startTime = System.currentTimeMillis();
         System.out.println("Part 1 begin.");
 
         /* get file */
@@ -163,9 +142,6 @@ public class Hw1 {
         int textEnd;
 
         documents = new ArrayList<Document>();
-
-        // todo: remove
-        final long startTime = System.currentTimeMillis();
 
         /* place all of the documents into the Document class */
         float alertInc = (float)0.1;
@@ -224,8 +200,7 @@ public class Hw1 {
         }
 
         // todo: remove
-        final long endTime = System.currentTimeMillis();
-        System.out.println("Total execution time: " + (endTime - startTime) );
+
 
         /* only used for processing-only early  termination */
         // todo: remove
@@ -271,6 +246,8 @@ public class Hw1 {
         int numUniqueWords = words.size();
         double retrievalIdf = Math.log((float) documents.size() / (float)retrievalFreq);
         double informationIdf = Math.log((float) documents.size() / (float)informationFreq);
+        final long endTime = System.currentTimeMillis();
+
 
         /* print some statistics */
         System.out.println("Number of documents:       " + Integer.toString(documents.size()));
@@ -279,9 +256,16 @@ public class Hw1 {
         System.out.println("Longest docno / words:     " + longestDocNo + " / " + Integer.toString(longestDocWords));
         System.out.println("'retrieval freq/IDF:       " + Integer.toString(retrievalFreq) + " / " + Double.toString(retrievalIdf));
         System.out.println("'information freq/IDF:     " + Integer.toString(informationFreq) + " / " + Double.toString(informationIdf));
+        System.out.println("Total execution time:      " + (endTime - startTime) );
 
         /* finally finished */
-        System.out.println("Part 1 complete.");
+        System.out.println("Part 1.1 complete.");
+
+        /* part 1.2 */
+
+    }
+    public static void part1_2() {
+        
     }
 
 
