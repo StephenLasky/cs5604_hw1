@@ -14,7 +14,7 @@ import java.lang.reflect.Array;
 import java.util.*;
 
 public class Hw1 {
-    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus";
+    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus_small";
 //    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus_med";
 
     public static void main(String[] args) {
@@ -38,13 +38,31 @@ public class Hw1 {
     private static String TEXT_END = "</TEXT>";
     /*
      * Please Note: File opening code is courtesy of https://www.caveofprogramming.com/java/java-file-reading-and-writing-files-in-java.html
+     * Also, character count courtesy of https://stackoverflow.com/questions/15240504/counting-a-specific-character-in-a-file-with-scanner
      */
     private static void openFile() {
         /* get file length and initialize char array */
         File file = new File(FILEPATH);
         inputSize = file.length();
-        input = new char[(int)inputSize];
 
+        /* count null characters */
+        try {
+            int numberOfLines = 0;
+            BufferedReader reader = new BufferedReader(new FileReader(file));
+            String line = null;
+            while ((line = reader.readLine()) !=null) {
+                numberOfLines += 1;
+            }
+
+            inputSize += numberOfLines;
+            System.out.println("Adding " + Integer.toString(numberOfLines) + " to " + Long.toString(inputSize));
+        } catch (FileNotFoundException e) {
+            // File not found
+        } catch (IOException e) {
+            // Couldn't read the file
+        }
+
+        input = new char[(int)inputSize];
         int i = 0;
 
         // The name of the file to open.
@@ -65,10 +83,15 @@ public class Hw1 {
             while((line = bufferedReader.readLine()) != null) {
                 // place string into character array
                 for (int j=0; j < line.length(); j++) {
+                    System.out.println("i:" + Integer.toString(i) + " j: " + Integer.toString(j));
                     input[i] = line.charAt(j);
-
                     i++;
                 }
+                if (i+1 >= inputSize)
+                    System.out.println("Attempted to falsely place newline char.");
+                else
+                    input[++i] = ' ';
+
             }
 
             // Always close files.
@@ -104,20 +127,20 @@ public class Hw1 {
 
         int i;
         while (true) {
-//            for (i=0; i<findLength; i++) {
-//                if (input[start+i] != findArr[i]){
-//                    break;
-//                }
-//            }
-//
-//            if (i == findLength) {
-////                System.out.println(find + " @ " + Integer.toString(start));   // todo: only here for debugging
-//                return start;
-//            }
+            for (i=0; i<findLength; i++) {
+                if (input[start+i] != findArr[i]){
+                    break;
+                }
+            }
 
-            if (Arrays.equals(findArr, Arrays.copyOfRange(input, start, start + findLength))) {
+            if (i == findLength) {
+//                System.out.println(find + " @ " + Integer.toString(start));   // todo: only here for debugging
                 return start;
             }
+
+//            if (Arrays.equals(findArr, Arrays.copyOfRange(input, start, start + findLength))) {
+//                return start;
+//            }
 
             start += 1;
         }
@@ -141,8 +164,11 @@ public class Hw1 {
 
         documents = new ArrayList<Document>();
 
+        // todo: remove
+        final long startTime = System.currentTimeMillis();
+
         /* place all of the documents into the Document class */
-        float alertInc = (float)0.01;
+        float alertInc = (float)0.1;
         float nextAlertInc = alertInc;
         while (i<inputSize) {
 
@@ -179,19 +205,30 @@ public class Hw1 {
             docno = "";
             text = "";
 
-            /* keep track of progress alert */
-            if ((float) i / (float) inputSize > nextAlertInc) {
-                System.out.println("processed " + Float.toString((float) i / (float)inputSize) + "/1.00");
-                nextAlertInc += alertInc;
-            }
-
-            /* exit early?? */ // todo: REMOVE
-            if (documents.size() == 25000)
+            if ((inputSize - i) < DOC_START.length())   // ensures we stop if it's not possible to find anything more
                 break;
 
+            /* keep track of progress alert */ // todo: remove
+//            if ((float) i / (float) inputSize > nextAlertInc) {
+//                System.out.println("processed " + Float.toString((float) i / (float)inputSize) + "/1.00");
+//                nextAlertInc += alertInc;
+//            }
+
+            /* exit early?? */ // todo: REMOVE
+//            if (nextAlertInc >= 0.50)
+//                break;
+
+            // todo: remove
+            if (documents.size() == 5)
+                System.out.println("5 found.");
         }
 
+        // todo: remove
+        final long endTime = System.currentTimeMillis();
+        System.out.println("Total execution time: " + (endTime - startTime) );
+
         /* only used for processing-only early  termination */
+        // todo: remove
 //        System.exit(0);
 //        System.out.println("Exiting...");
 
@@ -225,10 +262,10 @@ public class Hw1 {
             }
 
             /* information & retrieval info */
-            if (currDoc.contains("retreival"))
+            if (currDoc.contains("retrieval"))
                 retrievalFreq ++;
             if (currDoc.contains("information"))
-                retrievalFreq ++;
+                informationFreq ++;
         }
         averageTextLength /= documents.size();
         int numUniqueWords = words.size();

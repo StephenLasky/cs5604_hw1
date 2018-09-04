@@ -4,7 +4,6 @@ import java.util.ArrayList;
 
 public class Document {
     private String docno;
-    private String text;
     private int textLen;
     private ArrayList<String> tokens;
     private int numTokens;
@@ -12,13 +11,12 @@ public class Document {
 
     Document(String docno, String text) {
         this.docno = docno;
-        this.text = text;
         this.textLen = text.length();
 
-        this.tokenize();
+        this.tokenize(text);
     }
 
-    private void tokenize() {
+    private void tokenize(String text) {
         String newToken = "";
         char currChar = '\0';
         tokens = new ArrayList<String>();
@@ -65,15 +63,12 @@ public class Document {
     }
     public boolean contains(String token) {
         for (int i=0; i<numTokens; i++) {
-            if (tokens.get(i) == token)
+            if (tokens.get(i).equals(token))
                 return true;
         }
         return false;
     }
 
-    public String getText() {
-        return this.text;
-    }
     public int getTextFieldLen() {
         return this.numTokens;
     }
