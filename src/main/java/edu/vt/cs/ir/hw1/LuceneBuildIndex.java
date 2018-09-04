@@ -3,6 +3,7 @@ package edu.vt.cs.ir.hw1;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
@@ -17,8 +18,8 @@ public class LuceneBuildIndex {
     public static void main( String[] args ) {
         try {
 
-            String pathCorpus = ""; // path of the corpus file
-            String pathIndex = ""; // path of the index directory
+            String pathCorpus = "./acm_corpus"; // path of the corpus file
+            String pathIndex = "./"; // path of the index directory
 
             Directory dir = FSDirectory.open( new File( pathIndex ).toPath() );
 

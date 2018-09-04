@@ -9,19 +9,29 @@ package edu.vt.cs.ir.hw1;
 
 //import java.io.FileReader;
 //import java.io.BufferedReader;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.LowerCaseFilter;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+
 import java.io.*;
 import java.lang.reflect.Array;
 import java.util.*;
 
 public class Hw1 {
-    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus_small";
-//    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus_med";
+//    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus_small";
+    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus_med";
 
     public static void main(String[] args) {
         System.out.println("Hello Stephen Lasky.");
 
-        part1();
-        part1_2();
+//        part1();
+//        part1_2();
+        part1_3();
 
     }
 
@@ -183,20 +193,6 @@ public class Hw1 {
 
             if ((inputSize - i) < DOC_START.length())   // ensures we stop if it's not possible to find anything more
                 break;
-
-            /* keep track of progress alert */ // todo: remove
-//            if ((float) i / (float) inputSize > nextAlertInc) {
-//                System.out.println("processed " + Float.toString((float) i / (float)inputSize) + "/1.00");
-//                nextAlertInc += alertInc;
-//            }
-
-            /* exit early?? */ // todo: REMOVE
-//            if (nextAlertInc >= 0.50)
-//                break;
-
-            // todo: remove
-            if (documents.size() == 5)
-                System.out.println("5 found.");
         }
 
         // todo: remove
@@ -250,22 +246,160 @@ public class Hw1 {
 
 
         /* print some statistics */
-        System.out.println("Number of documents:       " + Integer.toString(documents.size()));
-        System.out.println("Average text field length: " + Float.toString(averageTextLength));
-        System.out.println("Number of unique words:    " + Integer.toString(numUniqueWords));
-        System.out.println("Longest docno / words:     " + longestDocNo + " / " + Integer.toString(longestDocWords));
-        System.out.println("'retrieval freq/IDF:       " + Integer.toString(retrievalFreq) + " / " + Double.toString(retrievalIdf));
-        System.out.println("'information freq/IDF:     " + Integer.toString(informationFreq) + " / " + Double.toString(informationIdf));
-        System.out.println("Total execution time:      " + (endTime - startTime) );
+        System.out.println("*** Part 1.1 STATS ***");
+        System.out.println("\tNumber of documents:       " + Integer.toString(documents.size()));
+        System.out.println("\tAverage text field length: " + Float.toString(averageTextLength));
+        System.out.println("\tNumber of unique words:    " + Integer.toString(numUniqueWords));
+        System.out.println("\tLongest docno / words:     " + longestDocNo + " / " + Integer.toString(longestDocWords));
+        System.out.println("\t'retrieval freq/IDF:       " + Integer.toString(retrievalFreq) + " / " + Double.toString(retrievalIdf));
+        System.out.println("\t'information freq/IDF:     " + Integer.toString(informationFreq) + " / " + Double.toString(informationIdf));
+        System.out.println("\tTotal execution time:      " + (endTime - startTime) );
 
         /* finally finished */
-        System.out.println("Part 1.1 complete.");
+        System.out.println(">>> Part 1.1 complete.");
 
         /* part 1.2 */
 
     }
     public static void part1_2() {
-        
+        try {
+
+            String pathCorpus = "./acm_corpus"; // path of the corpus file
+            String pathIndex = "./"; // path of the index directory
+
+            Directory dir = FSDirectory.open( new File( pathIndex ).toPath() );
+
+            // Analyzer includes options for text processing
+            Analyzer analyzer = new Analyzer() {
+                @Override
+                protected TokenStreamComponents createComponents( String fieldName ) {
+                    // Step 1: tokenization (Lucene's StandardTokenizer is suitable for most text retrieval occasions)
+                    TokenStreamComponents ts = new TokenStreamComponents( new StandardTokenizer() );
+                    // Step 2: transforming all tokens into lowercased ones
+                    ts = new TokenStreamComponents( ts.getTokenizer(), new LowerCaseFilter( ts.getTokenStream() ) );
+                    // Step 3: whether to remove stop words
+                    // Uncomment the following line to remove stop words
+                    // ts = new TokenStreamComponents( ts.getTokenizer(), new StopwordsFilter( ts.getTokenStream(), StandardAnalyzer.ENGLISH_STOP_WORDS_SET ) );
+                    // Step 4: whether to apply stemming
+                    // Uncomment the following line to apply Krovetz or Porter stemmer
+                    // ts = new TokenStreamComponents( ts.getTokenizer(), new KStemFilter( ts.getTokenStream() ) );
+                    // ts = new TokenStreamComponents( ts.getTokenizer(), new PorterStemFilter( ts.getTokenStream() ) );
+                    return ts;
+                }
+            };
+
+            IndexWriterConfig config = new IndexWriterConfig( analyzer );
+            // Note that IndexWriterConfig.OpenMode.CREATE will override the original index in the folder
+            config.setOpenMode( IndexWriterConfig.OpenMode.CREATE );
+
+            IndexWriter ixwriter = new IndexWriter( dir, config );
+
+            // This is the field setting for metadata field.
+            FieldType fieldTypeMetadata = new FieldType();
+            fieldTypeMetadata.setOmitNorms( true );
+            fieldTypeMetadata.setIndexOptions( IndexOptions.DOCS );
+            fieldTypeMetadata.setStored( true );
+            fieldTypeMetadata.setTokenized( false );
+            fieldTypeMetadata.freeze();
+
+            // This is the field setting for normal text field.
+            FieldType fieldTypeText = new FieldType();
+            fieldTypeText.setIndexOptions( IndexOptions.DOCS_AND_FREQS_AND_POSITIONS );
+            fieldTypeText.setStoreTermVectors( true );
+            fieldTypeText.setStoreTermVectorPositions( true );
+            fieldTypeText.setTokenized( true );
+            fieldTypeText.setStored( true );
+            fieldTypeText.freeze();
+
+            // You need to iteratively read each document from the corpus file,
+            // create a Document object for the parsed document, and add that
+            // Document object by calling addDocument().
+
+            // write your impelemntation here
+            String docno = "";
+            String text = "";
+            int i = 0;
+            int test = 0;
+
+            int docnoEnd;
+            int textEnd;
+
+            while (i<inputSize) {
+
+                /* start of doc section */
+                i = findNextMatch(DOC_START, i) + DOC_START.length();
+
+                /* start of docno section */
+                i = findNextMatch(DOCNO_START, i) + DOCNO_START.length();
+
+                /* get docno */
+                docnoEnd = findNextMatch(DOCNO_END, i);
+                while (i != docnoEnd) {
+                    docno += input[i];
+                    i ++;
+                }
+                i += DOCNO_END.length();
+
+                /* get text */
+                i = findNextMatch(TEXT_START, i) + TEXT_START.length();
+                textEnd = findNextMatch(TEXT_END, i);
+                while (i != textEnd) {
+                    text += input[i];
+                    i ++;
+                }
+                i += TEXT_END.length();
+
+                /* finally, zoom forward to the end of the doc */
+                i = findNextMatch(DOC_END, i) + DOC_END.length();
+
+                /* add document to the index */
+                org.apache.lucene.document.Document d = new org.apache.lucene.document.Document();
+                d.add( new Field( "docno", docno, fieldTypeMetadata ) );
+                d.add( new Field( "text", text, fieldTypeText ) );
+                ixwriter.addDocument( d );
+
+
+                /* cleanup and reset */
+                docno = "";
+                text = "";
+
+                if ((inputSize - i) < DOC_START.length())   // ensures we stop if it's not possible to find anything more
+                    break;
+            }
+
+            // remember to close both the index writer and the directory
+            ixwriter.close();
+            dir.close();
+
+
+
+        } catch ( Exception e ) {
+            e.printStackTrace();
+        }
+    }
+    public static void part1_3() {
+        String pathIndex = "./"; // path of the index directory
+
+        try {
+            Directory dir = FSDirectory.open(new File(pathIndex).toPath());
+            IndexReader index = DirectoryReader.open(dir);
+
+            int numDocs = index.numDocs();
+
+
+            /* print some statistics */
+            System.out.println("\tNumber of documents: " + Integer.toString(numDocs));
+
+            
+
+            /* all done */
+            index.close();
+            dir.close();
+
+        }
+        catch ( Exception e ) {
+            e.printStackTrace();
+        }
     }
 
 
