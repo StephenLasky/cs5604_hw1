@@ -593,9 +593,6 @@ public class Hw1 {
         for (String token: tokens)
             tokensDocFreq.put(token, 0);
 
-
-
-
         int nw;
         int numDocs = documents.size();
         double score;
@@ -615,6 +612,16 @@ public class Hw1 {
                 score = 0;
                 score = (double) documents.get(i).containsCount(token);
                 score *= Math.log((double)numDocs / (double) nw);
+
+                // todo: remove
+//                if (docno.equals("ACM-2609463")) {
+//                    String output = "";
+//                    output += "token" + token + " ";
+//                    output += "f:" + Integer.toString(documents.get(i).containsCount(token)) + " ";
+//                    output += "N:" + Integer.toString(N)
+//
+//                    System.out.println(output);
+//                }
 
                 if (docnoToScore.putIfAbsent(docno, score) != null) {
                     score += docnoToScore.get(docno);
@@ -644,9 +651,9 @@ public class Hw1 {
             };
         });
 
-        /* print the top 10 */
-        for (i=0; i<10; i++) {
-            System.out.println(finalResults.get(i).getDocno() + "   " + Double.toString(finalResults.get(i).getScore()));
+        /* print the top 20 */
+        for (i=0; i<20; i++) {
+            System.out.println(finalResults.get(i).getDocno() + "\t" + Double.toString(finalResults.get(i).getScore()));
         }
 
     }
