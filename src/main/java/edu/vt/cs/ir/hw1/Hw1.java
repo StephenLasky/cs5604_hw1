@@ -9,6 +9,8 @@ package edu.vt.cs.ir.hw1;
 
 //import java.io.FileReader;
 //import java.io.BufferedReader;
+import edu.vt.cs.ir.utils.LuceneUtils;
+import edu.vt.cs.ir.utils.SearchResult;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
@@ -17,22 +19,26 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.*;
 import java.lang.reflect.Array;
 import java.util.*;
 
 public class Hw1 {
-//    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus_small";
-    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus_med";
+//    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus_med";
+    public static String FILEPATH = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/CS5604_HW1/acm_corpus";
 
     public static void main(String[] args) {
-        System.out.println("Hello Stephen Lasky.");
+        System.out.println("Hello Stephen Lasky. Main program started.");
 
 //        part1();
 //        part1_2();
-        part1_3();
+//        part1_3();
 
+//        part2();
+
+        test();
     }
 
     private static char[] input;
@@ -154,7 +160,7 @@ public class Hw1 {
         documents = new ArrayList<Document>();
 
         /* place all of the documents into the Document class */
-        float alertInc = (float)0.1;
+        float alertInc = (float)0.05;
         float nextAlertInc = alertInc;
         while (i<inputSize) {
 
@@ -193,6 +199,11 @@ public class Hw1 {
 
             if ((inputSize - i) < DOC_START.length())   // ensures we stop if it's not possible to find anything more
                 break;
+
+            if ((float)i / (float)inputSize > nextAlertInc) {
+                System.out.println(nextAlertInc);
+                nextAlertInc += alertInc;
+            }
         }
 
         // todo: remove
@@ -262,6 +273,7 @@ public class Hw1 {
 
     }
     public static void part1_2() {
+        System.out.println("Part 1.2 started.");
         try {
 
             String pathCorpus = "./acm_corpus"; // path of the corpus file
@@ -376,21 +388,120 @@ public class Hw1 {
         } catch ( Exception e ) {
             e.printStackTrace();
         }
+        System.out.println("Part 1.2 finished.");
     }
     public static void part1_3() {
+        final long startTime = System.currentTimeMillis();
+        System.out.println("Part 3 START.");
+
         String pathIndex = "./"; // path of the index directory
 
         try {
             Directory dir = FSDirectory.open(new File(pathIndex).toPath());
             IndexReader index = DirectoryReader.open(dir);
 
+            /* compute some statistics */
             int numDocs = index.numDocs();
+            float averageDocLength = 0;
+            int thisDocLength = 0;
+            int longestDocLength = 0;
+            String longestDocno = "";
+            Set<String> fieldset = new HashSet<>();
+            fieldset.add("docno");
+            int informationDocFreq = 0;
+            int retrievalDocFreq = 0;
+            boolean containsInformation = false;
+            boolean containsRetrieval = false;
+            for (int i = 0; i < index.maxDoc(); i++) {
+                String docno = index.document(i, fieldset).get("docno");
+                TermsEnum termsEnum = index.getTermVector(i, "text").iterator();
+                while (termsEnum.next() != null) {
+                    thisDocLength += termsEnum.totalTermFreq();
+                    if (termsEnum.term().utf8ToString().equals("information"))
+                        containsInformation = true;
+                    if (termsEnum.term().utf8ToString().equals("retrieval"))
+                        containsRetrieval = true;
+                }
+                averageDocLength += thisDocLength;
+
+                if (thisDocLength > longestDocLength) {
+                    longestDocLength = thisDocLength;
+                    longestDocno = docno;
+                }
+                thisDocLength = 0;
+
+                if (containsInformation) {
+                    informationDocFreq ++;
+                    containsInformation = false;
+                }
+                if (containsRetrieval) {
+                    retrievalDocFreq ++;
+                    containsRetrieval = false;
+                }
+
+                /* get postings */
+
+            }
+            averageDocLength /= numDocs;
+
+            int numUniqueTerms = 0;
+            Fields fields = MultiFields.getFields(index);
+            Terms terms = fields.terms("text");
+            TermsEnum iterator = terms.iterator();
+            BytesRef byteRef = null;
+            while((byteRef = iterator.next()) != null) {
+                String term = new String(byteRef.bytes, byteRef.offset, byteRef.length);
+                numUniqueTerms ++;
+            }
+
+            double retrievalIdf = Math.log((float) numDocs / (float)retrievalDocFreq);
+            double informationIdf = Math.log((float) numDocs / (float)informationDocFreq);
+
+            PostingsEnum queryPosting = MultiFields.getTermDocsEnum(index, "text", new BytesRef("query"), PostingsEnum.FREQS);
+            PostingsEnum reformulationPosting = MultiFields.getTermDocsEnum(index, "text", new BytesRef("reformulation"), PostingsEnum.FREQS);
+            ArrayList<String> queryPostingArr = new ArrayList<String>();
+            ArrayList<String> reformulationPostingArr = new ArrayList<String>();
+            ArrayList<String> queryAndReforumlation = new ArrayList<String>();
+            int docid;
+            if (queryPosting != null) {
+                while ((docid = queryPosting.nextDoc()) != PostingsEnum.NO_MORE_DOCS) {
+                    queryPostingArr.add(LuceneUtils.getDocno(index, "docno", docid));
+                }
+            }
+            if (reformulationPosting != null) {
+                while ((docid = reformulationPosting.nextDoc()) != PostingsEnum.NO_MORE_DOCS) {
+                    reformulationPostingArr.add(LuceneUtils.getDocno(index, "docno", docid));
+                }
+            }
+            for (int i=0; i<queryPostingArr.size(); i++) {
+                for (int j=0; j<reformulationPostingArr.size(); j++) {
+                    if (queryPostingArr.get(i).equals(reformulationPostingArr.get(j))) {
+                        queryAndReforumlation.add(queryPostingArr.get(i));
+                    }
+                }
+            }
+
+            final long endTime = System.currentTimeMillis();    // get end time
+
+
 
 
             /* print some statistics */
-            System.out.println("\tNumber of documents: " + Integer.toString(numDocs));
+            System.out.println("\tNumber of documents:       " + Integer.toString(numDocs));
+            System.out.println("\tAverage doc length:        " + Float.toString(averageDocLength));
+            System.out.println("\tNum unique terms:          " + Integer.toString(numUniqueTerms));
+            System.out.println("\tLongest docno/length:      " + longestDocno + "/" + longestDocLength);
+            System.out.println("\t'retrieval' freq/IDF:      " + retrievalDocFreq + "/" + Double.toString(retrievalIdf));
+            System.out.println("\t'information' freq/IDF:    " + informationDocFreq + "/" + Double.toString(informationIdf));
 
-            
+            System.out.println();
+            System.out.println("\t'query' doc freq:          " + Integer.toString(queryPostingArr.size()));
+            System.out.println("\t'reformulation' doc freq:  " + Integer.toString(reformulationPostingArr.size()));
+            System.out.println("\tdocs containing BOTH:      " + Integer.toString(queryAndReforumlation.size()));
+            for (int i=0; i<queryAndReforumlation.size(); i++)
+                System.out.println("\t\t" + queryAndReforumlation.get(i));
+            System.out.println("\tfinal execution time       " + (endTime - startTime));
+
 
             /* all done */
             index.close();
@@ -401,6 +512,145 @@ public class Hw1 {
             e.printStackTrace();
         }
     }
+
+    public static void part2() {
+        System.out.println("Part 2 started.");
+        LuceneSearchIndex.main(null);
+    }
+
+    public static void test() {
+        /* get file */
+        System.out.println("Reading file.");
+        openFile();
+        System.out.println("End reading file.");
+
+        String docno = "";
+        String text = "";
+        int i = 0;
+        int test = 0;
+
+        int docnoEnd;
+        int textEnd;
+
+        documents = new ArrayList<Document>();
+
+        /* place all of the documents into the Document class */
+        float alertInc = (float)0.05;
+        float nextAlertInc = alertInc;
+        while (i<inputSize) {
+            /* start of doc section */
+            i = findNextMatch(DOC_START, i) + DOC_START.length();
+
+            /* start of docno section */
+            i = findNextMatch(DOCNO_START, i) + DOCNO_START.length();
+
+            /* get docno */
+            docnoEnd = findNextMatch(DOCNO_END, i);
+            while (i != docnoEnd) {
+                docno += input[i];
+                i ++;
+            }
+            i += DOCNO_END.length();
+
+            /* get text */
+            i = findNextMatch(TEXT_START, i) + TEXT_START.length();
+            textEnd = findNextMatch(TEXT_END, i);
+            while (i != textEnd) {
+                text += input[i];
+                i ++;
+            }
+            i += TEXT_END.length();
+
+            /* finally, zoom forward to the end of the doc */
+            i = findNextMatch(DOC_END, i) + DOC_END.length();
+
+            /* put them into a document class, and remember them */
+            documents.add(new Document(docno, text));
+
+            /* cleanup and reset */
+            docno = "";
+            text = "";
+
+            if ((inputSize - i) < DOC_START.length())   // ensures we stop if it's not possible to find anything more
+                break;
+
+            if ((float)i / (float)inputSize > nextAlertInc) {
+                System.out.println(nextAlertInc);
+                nextAlertInc += alertInc;
+            }
+        }
+        /* finished processing doc */
+
+
+
+        /* test stuff here */
+        Map<String, Double> docnoToScore = new HashMap<String, Double>();
+        ArrayList<String> tokens = new ArrayList<String>();
+        tokens.add("query");
+        tokens.add("reformulation");
+
+        Map<String, Integer> tokensDocFreq = new HashMap<>();
+        for (String token: tokens)
+            tokensDocFreq.put(token, 0);
+
+
+
+
+        int nw;
+        int numDocs = documents.size();
+        double score;
+
+        for (String token: tokens) {
+            /* first compute nw */
+            nw = 0;
+            for (i=0; i<numDocs; i++) {
+                if (documents.get(i).contains(token))
+                    nw ++;
+            }
+
+            /* now compute the score for each document */
+            for (i=0; i<numDocs; i++) {
+                docno = documents.get(i).getDocno();
+
+                score = 0;
+                score = (double) documents.get(i).containsCount(token);
+                score *= Math.log((double)numDocs / (double) nw);
+
+                if (docnoToScore.putIfAbsent(docno, score) != null) {
+                    score += docnoToScore.get(docno);
+                    docnoToScore.put(docno, score);
+                }
+            }
+        }
+
+        /* FINALLY finished scoring. Let's now rank them */
+        List<SearchResult> finalResults = new ArrayList<>();
+        for (String key : docnoToScore.keySet()) {
+            docno = key;
+
+            finalResults.add(new SearchResult(-1, docno, docnoToScore.get(docno)));
+        }
+
+        /* sort the final list */
+        Collections.sort(finalResults, new Comparator<SearchResult>() {
+            @Override
+            public int compare(SearchResult o1, SearchResult o2) {
+                if (o1.getScore() > o2.getScore())
+                    return -1;
+                else if (o1.getScore() < o2.getScore())
+                    return 1;
+                else
+                    return 0;
+            };
+        });
+
+        /* print the top 10 */
+        for (i=0; i<10; i++) {
+            System.out.println(finalResults.get(i).getDocno() + "   " + Double.toString(finalResults.get(i).getScore()));
+        }
+
+    }
+
 
 
 

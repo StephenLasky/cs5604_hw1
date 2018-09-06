@@ -68,6 +68,16 @@ public class Document {
         }
         return false;
     }
+    public int containsCount(String token) {
+        int count = 0;
+        for (int i=0; i<numTokens; i++) {
+            if (token.equals(tokens.get(i))) {
+                count++;
+            }
+        }
+
+        return count;
+    }
 
     public int getTextFieldLen() {
         return this.numTokens;
