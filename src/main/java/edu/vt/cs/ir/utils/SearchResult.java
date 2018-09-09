@@ -39,6 +39,7 @@ public class SearchResult {
         return this;
     }
 
+
     // feel free to add other things if you need them
 
 

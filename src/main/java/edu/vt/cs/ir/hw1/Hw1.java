@@ -38,12 +38,15 @@ public class Hw1 {
 
 //        part2();
 
-        test();
+//        test();
+//        test2();
+
+        TestHw1.test3();
     }
 
     private static char[] input;
     private static long inputSize;
-    private static ArrayList<Document> documents;
+    public static ArrayList<Document> documents;
 
     private static String DOC_START = "<DOC>";
     private static String DOC_END = "</DOC>";
@@ -128,7 +131,6 @@ public class Hw1 {
             }
 
             if (i == findLength) {
-//                System.out.println(find + " @ " + Integer.toString(start));   // todo: only here for debugging
                 return start;
             }
 
@@ -206,18 +208,7 @@ public class Hw1 {
             }
         }
 
-        // todo: remove
 
-
-        /* only used for processing-only early  termination */
-        // todo: remove
-//        System.exit(0);
-//        System.out.println("Exiting...");
-
-        /* print some test stuff */
-//        Document testDoc = documents.get(0);
-//        System.out.println(testDoc.getText());
-//        testDoc.printTokens();
 
         /* compute some statistics */
         float averageTextLength = 0;
@@ -605,6 +596,8 @@ public class Hw1 {
                     nw ++;
             }
 
+
+
             /* now compute the score for each document */
             for (i=0; i<numDocs; i++) {
                 docno = documents.get(i).getDocno();
@@ -655,7 +648,91 @@ public class Hw1 {
         for (i=0; i<20; i++) {
             System.out.println(finalResults.get(i).getDocno() + "\t" + Double.toString(finalResults.get(i).getScore()));
         }
+    }
 
+    public static void loadDocuments() {
+        /* get file */
+        System.out.println("Reading file.");
+        openFile();
+        System.out.println("End reading file.");
+
+        String docno = "";
+        String text = "";
+        int i = 0;
+        int test = 0;
+
+        int docnoEnd;
+        int textEnd;
+
+        documents = new ArrayList<Document>();
+
+        /* place all of the documents into the Document class */
+        float alertInc = (float)0.05;
+        float nextAlertInc = alertInc;
+        while (i<inputSize) {
+            /* start of doc section */
+            i = findNextMatch(DOC_START, i) + DOC_START.length();
+
+            /* start of docno section */
+            i = findNextMatch(DOCNO_START, i) + DOCNO_START.length();
+
+            /* get docno */
+            docnoEnd = findNextMatch(DOCNO_END, i);
+            while (i != docnoEnd) {
+                docno += input[i];
+                i ++;
+            }
+            i += DOCNO_END.length();
+
+            /* get text */
+            i = findNextMatch(TEXT_START, i) + TEXT_START.length();
+            textEnd = findNextMatch(TEXT_END, i);
+            while (i != textEnd) {
+                text += input[i];
+                i ++;
+            }
+            i += TEXT_END.length();
+
+            /* finally, zoom forward to the end of the doc */
+            i = findNextMatch(DOC_END, i) + DOC_END.length();
+
+            /* put them into a document class, and remember them */
+            documents.add(new Document(docno, text));
+
+            /* cleanup and reset */
+            docno = "";
+            text = "";
+
+            if ((inputSize - i) < DOC_START.length())   // ensures we stop if it's not possible to find anything more
+                break;
+
+            if ((float)i / (float)inputSize > nextAlertInc) {
+                System.out.println(nextAlertInc);
+                nextAlertInc += alertInc;
+            }
+        }
+        /* finished processing doc */
+    }
+
+    public static void test2() {
+        loadDocuments();
+
+        String token = "query";
+        String docno;
+        String quantityStr;
+        String printLine;
+
+        ArrayList<String> printStuff = new ArrayList<>();
+
+        for (int i=0; i<documents.size(); i++) {
+            docno = documents.get(i).getDocno();
+            quantityStr = Integer.toString(documents.get(i).containsCount(token));
+
+            printLine = docno + "\t" + quantityStr;
+            printStuff.add(printLine);
+        }
+
+        TestHw1.printToFile(printStuff, "part1Query");
     }
 
 

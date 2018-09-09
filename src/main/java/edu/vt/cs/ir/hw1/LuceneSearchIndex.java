@@ -186,6 +186,9 @@ public class LuceneSearchIndex {
             int nw = 0;
             int N = index.maxDoc();
 
+            // todo: delete
+            ArrayList<String> printLines = new ArrayList<>();
+
             /* compute nw */
             PostingsEnum posting = MultiFields.getTermDocsEnum(index, "text", new BytesRef(queryTerm), PostingsEnum.FREQS);
             if (posting != null) {
@@ -194,10 +197,18 @@ public class LuceneSearchIndex {
                     String docno = LuceneUtils.getDocno(index, "docno", docid);
                     int freq = posting.freq();
 
-                    if (freq > 0)
+                    // todo: delete
+                    printLines.add(docno + '\t' + Integer.toString(freq));
+
+                    if (freq > 0) {
                         nw += 1;
+                    }
+
                 }
             }
+
+            if (queryTerm.equals("query"))
+                TestHw1.printToFile(printLines,"part2Query"); // todo: delete
 
             /* get search results */
             posting = MultiFields.getTermDocsEnum(index, "text", new BytesRef(queryTerm), PostingsEnum.FREQS);
