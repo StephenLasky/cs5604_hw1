@@ -180,8 +180,8 @@ public class LuceneSearchIndex {
         ArrayList<SearchResult> searchResults = new ArrayList<SearchResult>();
         Map<Integer, SearchResult> docidToSearchResult = new HashMap<Integer, SearchResult>();
 
-        while (queryTerms.size() > 0) {
-            String queryTerm = queryTerms.remove(0);
+        for (int i=0; i<queryTerms.size(); i++) {
+            String queryTerm = queryTerms.get(i);
 
             int nw = 0;
             int N = index.maxDoc();
@@ -220,7 +220,7 @@ public class LuceneSearchIndex {
 
                     double sumTerm = (double)freq * Math.log((double) N / (double) nw);
 
-                    if (docno.equals("ACM-1718493")) {
+                    if (docno.equals("ACM-2124339")) {
                         // break here
                         int x = 5;
                     }
@@ -290,8 +290,145 @@ public class LuceneSearchIndex {
      * @return A list of search results (sorted by relevance scores).
      */
     public static List<SearchResult> searchVSMCosine( IndexReader index, String field, List<String> queryTerms ) throws IOException {
+        Map<String, Integer> queryTermFreq = new HashMap<>();
+
+        /* get query term frequency */
+        // todo: modify to set of unique words!
+        for (String queryTerm: queryTerms) {
+            // for every query term
+            for (int i=0; i<queryTerms.size(); i++) {
+                // if we another query term
+                if (queryTerms.get(i).equals(queryTerm)) {
+                    if (queryTermFreq.putIfAbsent(queryTerm, 1) != null) {
+                        queryTermFreq.put(queryTerm, queryTermFreq.get(queryTerm) + 1);
+                    }
+                }
+            }
+        }
+
+        /* local class used to compute the score */
+        class FreqClass {
+            public Integer docid;
+            List<Double> freq_wq_list;
+            List<Double> freq_wd_list;
+
+            FreqClass() {
+                freq_wq_list = new ArrayList<>();
+                freq_wd_list = new ArrayList<>();
+            }
+            public void add(double freq_wd, double freq_wq) {
+                this.freq_wq_list.add(new Double(freq_wd));
+                this.freq_wd_list.add(new Double(freq_wq));
+            }
+            public double compute() {
+                double total = 0;
+                double freq_wq_total = 0;
+                double freq_wd_total = 0;
+
+                for (int i=0; i<freq_wq_list.size(); i++) {
+                    double freq_wq = freq_wq_list.get(i);
+                    double freq_wd = freq_wd_list.get(i);
+
+                    total += freq_wq * freq_wd;
+                    freq_wq_total += Math.pow(freq_wq, 2);
+                    freq_wd_total += Math.pow(freq_wd, 2);
+                }
+
+                freq_wq_total = Math.sqrt(freq_wq_total);
+                freq_wd_total = Math.sqrt(freq_wd_total);
+
+                total /= (freq_wq_total * freq_wd_total);
+
+                return total;
+            }
+        }
+
         // Write you implementation Problem 2 "VSM (cosine similarity)" here
-        return null;
+        // Write you implementation Problem 2 "TFxIDF" here
+        ArrayList<SearchResult> searchResults = new ArrayList<SearchResult>();
+        Map<Integer, SearchResult> docidToSearchResult = new HashMap<Integer, SearchResult>();
+        Map<Integer, FreqClass> docidToFreqclass = new HashMap<>();
+
+        while (queryTerms.size() > 0) {
+            String queryTerm = queryTerms.remove(0);
+
+            int N = index.maxDoc();
+
+            /* get search results */
+            PostingsEnum posting = MultiFields.getTermDocsEnum(index, "text", new BytesRef(queryTerm), PostingsEnum.FREQS);
+            if (posting != null) {
+                int docid;
+                while ((docid = posting.nextDoc()) != PostingsEnum.NO_MORE_DOCS) {
+                    String docno = LuceneUtils.getDocno(index, "docno", docid);
+                    int freq = posting.freq();
+
+                    docidToFreqclass.putIfAbsent(docid, new FreqClass());
+                    docidToFreqclass.get(docid).add((double) freq, (double) queryTermFreq.get(queryTerm));
+
+                    if (docidToSearchResult.putIfAbsent(docid, new SearchResult(docid, docno, 0)) != null) {
+                        docidToSearchResult.put(docid, new SearchResult(docid, docno, 0));
+                    }
+                }
+            }
+
+
+        }
+
+        /* note: iterator code motivated by example here: https://stackoverflow.com/questions/1066589/iterate-through-a-hashmap */
+        Iterator it = docidToSearchResult.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry pair = (Map.Entry)it.next();
+            searchResults.add((SearchResult)pair.getValue());
+            it.remove(); // avoids a ConcurrentModificationException
+
+            /* set the scores */
+            SearchResult lastResult = searchResults.get(searchResults.size() - 1);
+            int docid = lastResult.getDocid();
+            // todo: delete
+            if (lastResult.getDocno().equals("ACM-1718493")) {
+                int x = 5;
+            }
+            double score = docidToFreqclass.get(docid).compute();
+            lastResult.setScore(score);
+
+        }
+
+        Collections.sort(searchResults, new Comparator<SearchResult>() {
+            @Override
+            public int compare(SearchResult o1, SearchResult o2) {
+                if (o1.getScore() > o2.getScore())
+                    return -1;
+                else if (o1.getScore() < o2.getScore())
+                    return 1;
+                else
+                    return 0;
+            };
+        });
+
+        /* assert correctly sorted */
+//        for (int i=0; i<searchResults.size() - 1; i++) {
+//            if (searchResults.get(i).getScore() > searchResults.get(i+1).getScore())
+//                System.out.println("Good: " + Double.toString(searchResults.get(i).getScore()) + " > " + Double.toString(searchResults.get(i+1).getScore()));
+//            else
+//                System.out.println("Bad: " + Double.toString(searchResults.get(i).getScore()) + " < " + Double.toString(searchResults.get(i+1).getScore()));
+//
+//        }
+
+        // todo: delete this debug information
+//        for (int i=0; i<searchResults.size(); i++) {
+//            if (searchResults.get(i).getDocno().equals("ACM-1718493")) {
+//                System.out.println("ACM-1718493 is " + Double.toString(searchResults.get(i).getScore()));
+//            }
+//
+//            if (searchResults.get(i).getDocno().equals("ACM-2187890")) {
+//                System.out.println("ACM-2187890 is " + Double.toString(searchResults.get(i).getScore()));
+//            }
+//            if (searchResults.get(i).getDocno().equals("ACM-2124339")) {
+//                System.out.println("ACM-2124339 is " + Double.toString(searchResults.get(i).getScore()));
+//            }
+//        }
+
+        return searchResults;
     }
 
 }

@@ -36,12 +36,12 @@ public class Hw1 {
 //        part1_2();
 //        part1_3();
 
-//        part2();
+        part2();
 
 //        test();
 //        test2();
 
-        TestHw1.test3();
+//        TestHw1.test3();
     }
 
     private static char[] input;
