@@ -5,7 +5,11 @@ import edu.vt.cs.ir.utils.LuceneUtils;
 import edu.vt.cs.ir.utils.SearchResult;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.cjk.CJKAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermFrequencyAttribute;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.*;
@@ -284,71 +288,6 @@ public class LuceneSearchIndex {
         return searchResults;
     }
 
-    static class DocTermFreq {
-        private Map<String, Integer> terms;
-
-        DocTermFreq() {
-            terms = new HashMap<>();
-        }
-
-        public boolean contains(String term) {
-            return terms.containsKey(term);
-        }
-        public int get(String term) {
-            return terms.get(term);
-        }
-        public void add(String term, int quantity) {
-            terms.put(term, quantity);
-        }
-
-    }
-    private static Map<Integer, DocTermFreq> x = null;
-
-    private static int getTermFreqInDoc(String term, int docid, IndexReader index) {
-        int docidWeWant = docid;
-
-
-        /* see if we don't even need to run through all the BS below */
-        if (x == null)
-            x = new HashMap<>();
-
-        x.putIfAbsent(docid, new DocTermFreq());
-
-        if (x.get(docid).contains(term)) {
-            return x.get(docid).get(term);
-        }
-
-        try {
-            String field = "text";
-
-            // The following line reads the posting list of the term in a specific index field.
-            // You need to encode the term into a BytesRef object,
-            // which is the internal representation of a term used by Lucene.
-            PostingsEnum posting = MultiFields.getTermDocsEnum(index, field, new BytesRef(term), PostingsEnum.FREQS);
-            if (posting != null) { // if the term does not appear in any document, the posting object may be null
-                // Each time you call posting.nextDoc(), it moves the cursor of the posting list to the next position
-                // and returns the docid of the current entry (document). Note that this is an internal Lucene docid.
-                // It returns PostingsEnum.NO_MORE_DOCS if you have reached the end of the posting list.
-                while ((docid = posting.nextDoc()) != PostingsEnum.NO_MORE_DOCS) {
-//                    System.out.println("\t" + Integer.toString(docid)); // todo: delete
-                    // make sure it actually exists
-                    x.putIfAbsent(docid, new DocTermFreq());
-
-                    String docno = LuceneUtils.getDocno(index, "docno", docid);
-                    int freq = posting.freq(); // get the frequency of the term in the current document
-
-                    x.get(docid).add(term, freq);
-
-                }
-            }
-        }
-        catch (Exception ex) {
-            System.out.println(ex.toString());
-        }
-
-
-        return x.get(docidWeWant).get(term);
-    }
 
     /**
      * Perform a VSM (cosine similarity) search and return the search results.
@@ -361,53 +300,82 @@ public class LuceneSearchIndex {
     public static List<SearchResult> searchVSMCosine( IndexReader index, String field, List<String> queryTerms ) throws IOException {
 
         List<SearchResult> searchResults = new ArrayList<>();
+        Map<String, Integer> termFreq = new HashMap<>();
 
         for (int i=0; i<index.maxDoc(); i++) {
+            if (i % 5000 == 0)
+                System.out.println(i);
+
+            for (String queryTerm : queryTerms)
+                termFreq.put(queryTerm, 0);
+
 //            System.out.println(i);  // todo: delete
             Document doc = index.document(i);
-            Terms termVector = index.getTermVector(i, "text");
-            TermsEnum termsEnum = termVector.iterator();
 
-//            String nextTerm = termsEnum.next().utf8ToString();
-//            double totalFreq = 0;
-//            int testi = 0; // todo: delete
-//            while (nextTerm != null) {
-//                int freq = getTermFreqInDoc(nextTerm, i, index);
-//                totalFreq += Math.pow((double) freq, 2);
-//                nextTerm = termsEnum.next().utf8ToString();
-//                System.out.println(testi ++);   // todo: delete
-//            }
+            Terms vector = index.getTermVector( i, field ); // Read the document's document vector.
 
-            String nextTerm;
-            BytesRef nextBytesRefTerm = termsEnum.next();
-            double totalFreq = 0;
-            int testi = 0; // todo: delete
-            while (nextBytesRefTerm != null) {
-                System.out.println("Next term.");
-                nextTerm = nextBytesRefTerm.utf8ToString();
-                int freq = getTermFreqInDoc(nextTerm, i, index);
-                totalFreq += Math.pow((double) freq, 2);
-                nextBytesRefTerm = termsEnum.next();
-//                System.out.println(testi ++);   // todo: delete
+            // You need to use TermsEnum to iterate each entry of the document vector (in alphabetical order).
+            TermsEnum terms = vector.iterator();
+            PostingsEnum positions = null;
+            BytesRef term;
+            double len = 0;
+            while ( ( term = terms.next() ) != null ) {
+
+                String termstr = term.utf8ToString(); // Get the text string of the term.
+                long freq = terms.totalTermFreq(); // Get the frequency of the term in the document.
+                len +=  Math.pow((double) freq, 2);
+
+                for (String queryTerm : queryTerms)
+                    if (termstr.equals(queryTerm))
+                        termFreq.put(queryTerm, (int) freq);
+
+                // Lucene's document vector can also provide the position of the terms
+                // (in case you stored these information in the index).
+                // Here you are getting a PostingsEnum that includes only one document entry, i.e., the current document.
+                positions = terms.postings( positions, PostingsEnum.POSITIONS );
+                positions.nextDoc(); // you still need to move the cursor
+                // now accessing the occurrence position of the terms by iteratively calling nextPosition()
+
             }
 
-            totalFreq = Math.sqrt(totalFreq);
-            String docno = LuceneUtils.getDocno( index, "docno", i );
+            len = Math.sqrt(len);
 
-            double score = 2.0 / totalFreq;
+            /* WE NOW HAVE THE DOC LENGTH */
+            // get the freq(w,d) term now
+            double numerator = 0;
+            double denominator = 0;
 
+            for (String queryTerm : queryTerms)
+                numerator += (double) termFreq.get(queryTerm);
+
+            denominator = len;
+            denominator *= Math.sqrt((double) queryTerms.size());
+
+            double score = numerator / denominator;
+
+            String docno = LuceneUtils.getDocno(index, "docno", i);
             searchResults.add(new SearchResult(i, docno, score));
+
+            if (docno.equals("ACM-1242758")) {
+                int x = 5;
+            }
         }
 
 
+        /* sort the stuff */
+        Collections.sort(searchResults, new Comparator<SearchResult>() {
+            @Override
+            public int compare(SearchResult o1, SearchResult o2) {
+                if (o1.getScore() > o2.getScore())
+                    return -1;
+                else if (o1.getScore() < o2.getScore())
+                    return 1;
+                else
+                    return 0;
+            };
+        });
 
-
-
-
-
-        return null;
+        return searchResults;
     }
-
-
 
 }

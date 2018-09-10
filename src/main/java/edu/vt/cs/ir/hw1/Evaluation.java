@@ -16,9 +16,9 @@ public class Evaluation {
         try {
 
             // path of the search results folder
-            String pathResults = "";
+            String pathResults = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1_b/HW1b";
             // path of the qrels file
-            String pathQrels = "";
+            String pathQrels = "/Users/stephenlasky/Documents/cs5604/CS5604_HW1/qrels";
 
             Set<String> relDocnos = new TreeSet<>();
             BufferedReader reader = new BufferedReader( new InputStreamReader( new FileInputStream( pathQrels ), "UTF-8" ) );
@@ -58,8 +58,14 @@ public class Evaluation {
      * @return
      */
     public static double evalPrecision( List<SearchResult> results, Set<String> relDocnos, int k ) {
+        int r_k = 0;
         // write your implementation for problem 3 "P@k" here
-        return -1;
+        for (int i=0; i<k; i++) {
+            String docno = results.get(i).getDocno();
+            if (relDocnos.contains(docno))
+                r_k ++;
+        }
+        return (double) r_k / (double) k;
     }
 
     /**
@@ -72,7 +78,17 @@ public class Evaluation {
      */
     public static double evalRecall( List<SearchResult> results, Set<String> relDocnos, int k ) {
         // write your implementation for problem 3 "Recall@k" here
-        return -1;
+        int r_k = 0;
+        // write your implementation for problem 3 "P@k" here
+        for (int i=0; i<k; i++) {
+            String docno = results.get(i).getDocno();
+            if (relDocnos.contains(docno))
+                r_k ++;
+        }
+
+        int R_size = relDocnos.size();
+
+        return (double) r_k / (double) R_size;
     }
 
     /**
@@ -84,7 +100,16 @@ public class Evaluation {
      */
     public static double evalAP( List<SearchResult> results, Set<String> relDocnos ) {
         // write your implementation for problem 3 "AP" here
-        return -1;
+        double ap = 0;
+
+        for (int i=1; i<=results.size(); i++) {
+            String docno = results.get(i-1).getDocno();
+            if (relDocnos.contains(docno))
+                ap += evalPrecision(results, relDocnos, i);
+        }
+
+        ap /= ((double) relDocnos.size());
+        return ap;
     }
 
 }

@@ -32,11 +32,12 @@ public class Hw1 {
     public static void main(String[] args) {
         System.out.println("Hello Stephen Lasky. Main program started.");
 
-//        part1();
+        part1();
 //        part1_2();
 //        part1_3();
 
-        part2();
+//        part2();
+//        part3();
 
 //        test();
 //        test2();
@@ -263,7 +264,7 @@ public class Hw1 {
         /* part 1.2 */
 
     }
-    public static void part1_2() {
+    public static void part1_2()    {
         System.out.println("Part 1.2 started.");
         try {
 
@@ -507,6 +508,9 @@ public class Hw1 {
     public static void part2() {
         System.out.println("Part 2 started.");
         LuceneSearchIndex.main(null);
+    }
+    public static void part3() {
+        Evaluation.main(null);
     }
 
     public static void test() {
