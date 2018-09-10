@@ -1,10 +1,13 @@
 package edu.vt.cs.ir.hw1;
 
+//import com.sun.java.util.jar.pack.ConstantPool;
 import edu.vt.cs.ir.utils.LuceneUtils;
 import edu.vt.cs.ir.utils.SearchResult;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.analysis.tokenattributes.TermFrequencyAttribute;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -88,7 +91,7 @@ public class LuceneSearchIndex {
             index.close();
             dir.close();
 
-        } catch ( Exception e ) {
+            } catch ( Exception e ) {
             e.printStackTrace();
         }
     }
@@ -281,6 +284,72 @@ public class LuceneSearchIndex {
         return searchResults;
     }
 
+    static class DocTermFreq {
+        private Map<String, Integer> terms;
+
+        DocTermFreq() {
+            terms = new HashMap<>();
+        }
+
+        public boolean contains(String term) {
+            return terms.containsKey(term);
+        }
+        public int get(String term) {
+            return terms.get(term);
+        }
+        public void add(String term, int quantity) {
+            terms.put(term, quantity);
+        }
+
+    }
+    private static Map<Integer, DocTermFreq> x = null;
+
+    private static int getTermFreqInDoc(String term, int docid, IndexReader index) {
+        int docidWeWant = docid;
+
+
+        /* see if we don't even need to run through all the BS below */
+        if (x == null)
+            x = new HashMap<>();
+
+        x.putIfAbsent(docid, new DocTermFreq());
+
+        if (x.get(docid).contains(term)) {
+            return x.get(docid).get(term);
+        }
+
+        try {
+            String field = "text";
+
+            // The following line reads the posting list of the term in a specific index field.
+            // You need to encode the term into a BytesRef object,
+            // which is the internal representation of a term used by Lucene.
+            PostingsEnum posting = MultiFields.getTermDocsEnum(index, field, new BytesRef(term), PostingsEnum.FREQS);
+            if (posting != null) { // if the term does not appear in any document, the posting object may be null
+                // Each time you call posting.nextDoc(), it moves the cursor of the posting list to the next position
+                // and returns the docid of the current entry (document). Note that this is an internal Lucene docid.
+                // It returns PostingsEnum.NO_MORE_DOCS if you have reached the end of the posting list.
+                while ((docid = posting.nextDoc()) != PostingsEnum.NO_MORE_DOCS) {
+//                    System.out.println("\t" + Integer.toString(docid)); // todo: delete
+                    // make sure it actually exists
+                    x.putIfAbsent(docid, new DocTermFreq());
+
+                    String docno = LuceneUtils.getDocno(index, "docno", docid);
+                    int freq = posting.freq(); // get the frequency of the term in the current document
+
+                    x.get(docid).add(term, freq);
+
+                }
+            }
+        }
+        catch (Exception ex) {
+            System.out.println(ex.toString());
+        }
+
+
+        return x.get(docidWeWant).get(term);
+    }
+
     /**
      * Perform a VSM (cosine similarity) search and return the search results.
      *
@@ -290,145 +359,55 @@ public class LuceneSearchIndex {
      * @return A list of search results (sorted by relevance scores).
      */
     public static List<SearchResult> searchVSMCosine( IndexReader index, String field, List<String> queryTerms ) throws IOException {
-        Map<String, Integer> queryTermFreq = new HashMap<>();
 
-        /* get query term frequency */
-        // todo: modify to set of unique words!
-        for (String queryTerm: queryTerms) {
-            // for every query term
-            for (int i=0; i<queryTerms.size(); i++) {
-                // if we another query term
-                if (queryTerms.get(i).equals(queryTerm)) {
-                    if (queryTermFreq.putIfAbsent(queryTerm, 1) != null) {
-                        queryTermFreq.put(queryTerm, queryTermFreq.get(queryTerm) + 1);
-                    }
-                }
-            }
-        }
+        List<SearchResult> searchResults = new ArrayList<>();
 
-        /* local class used to compute the score */
-        class FreqClass {
-            public Integer docid;
-            List<Double> freq_wq_list;
-            List<Double> freq_wd_list;
+        for (int i=0; i<index.maxDoc(); i++) {
+//            System.out.println(i);  // todo: delete
+            Document doc = index.document(i);
+            Terms termVector = index.getTermVector(i, "text");
+            TermsEnum termsEnum = termVector.iterator();
 
-            FreqClass() {
-                freq_wq_list = new ArrayList<>();
-                freq_wd_list = new ArrayList<>();
-            }
-            public void add(double freq_wd, double freq_wq) {
-                this.freq_wq_list.add(new Double(freq_wd));
-                this.freq_wd_list.add(new Double(freq_wq));
-            }
-            public double compute() {
-                double total = 0;
-                double freq_wq_total = 0;
-                double freq_wd_total = 0;
-
-                for (int i=0; i<freq_wq_list.size(); i++) {
-                    double freq_wq = freq_wq_list.get(i);
-                    double freq_wd = freq_wd_list.get(i);
-
-                    total += freq_wq * freq_wd;
-                    freq_wq_total += Math.pow(freq_wq, 2);
-                    freq_wd_total += Math.pow(freq_wd, 2);
-                }
-
-                freq_wq_total = Math.sqrt(freq_wq_total);
-                freq_wd_total = Math.sqrt(freq_wd_total);
-
-                total /= (freq_wq_total * freq_wd_total);
-
-                return total;
-            }
-        }
-
-        // Write you implementation Problem 2 "VSM (cosine similarity)" here
-        // Write you implementation Problem 2 "TFxIDF" here
-        ArrayList<SearchResult> searchResults = new ArrayList<SearchResult>();
-        Map<Integer, SearchResult> docidToSearchResult = new HashMap<Integer, SearchResult>();
-        Map<Integer, FreqClass> docidToFreqclass = new HashMap<>();
-
-        while (queryTerms.size() > 0) {
-            String queryTerm = queryTerms.remove(0);
-
-            int N = index.maxDoc();
-
-            /* get search results */
-            PostingsEnum posting = MultiFields.getTermDocsEnum(index, "text", new BytesRef(queryTerm), PostingsEnum.FREQS);
-            if (posting != null) {
-                int docid;
-                while ((docid = posting.nextDoc()) != PostingsEnum.NO_MORE_DOCS) {
-                    String docno = LuceneUtils.getDocno(index, "docno", docid);
-                    int freq = posting.freq();
-
-                    docidToFreqclass.putIfAbsent(docid, new FreqClass());
-                    docidToFreqclass.get(docid).add((double) freq, (double) queryTermFreq.get(queryTerm));
-
-                    if (docidToSearchResult.putIfAbsent(docid, new SearchResult(docid, docno, 0)) != null) {
-                        docidToSearchResult.put(docid, new SearchResult(docid, docno, 0));
-                    }
-                }
-            }
-
-
-        }
-
-        /* note: iterator code motivated by example here: https://stackoverflow.com/questions/1066589/iterate-through-a-hashmap */
-        Iterator it = docidToSearchResult.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry pair = (Map.Entry)it.next();
-            searchResults.add((SearchResult)pair.getValue());
-            it.remove(); // avoids a ConcurrentModificationException
-
-            /* set the scores */
-            SearchResult lastResult = searchResults.get(searchResults.size() - 1);
-            int docid = lastResult.getDocid();
-            // todo: delete
-            if (lastResult.getDocno().equals("ACM-1718493")) {
-                int x = 5;
-            }
-            double score = docidToFreqclass.get(docid).compute();
-            lastResult.setScore(score);
-
-        }
-
-        Collections.sort(searchResults, new Comparator<SearchResult>() {
-            @Override
-            public int compare(SearchResult o1, SearchResult o2) {
-                if (o1.getScore() > o2.getScore())
-                    return -1;
-                else if (o1.getScore() < o2.getScore())
-                    return 1;
-                else
-                    return 0;
-            };
-        });
-
-        /* assert correctly sorted */
-//        for (int i=0; i<searchResults.size() - 1; i++) {
-//            if (searchResults.get(i).getScore() > searchResults.get(i+1).getScore())
-//                System.out.println("Good: " + Double.toString(searchResults.get(i).getScore()) + " > " + Double.toString(searchResults.get(i+1).getScore()));
-//            else
-//                System.out.println("Bad: " + Double.toString(searchResults.get(i).getScore()) + " < " + Double.toString(searchResults.get(i+1).getScore()));
-//
-//        }
-
-        // todo: delete this debug information
-//        for (int i=0; i<searchResults.size(); i++) {
-//            if (searchResults.get(i).getDocno().equals("ACM-1718493")) {
-//                System.out.println("ACM-1718493 is " + Double.toString(searchResults.get(i).getScore()));
+//            String nextTerm = termsEnum.next().utf8ToString();
+//            double totalFreq = 0;
+//            int testi = 0; // todo: delete
+//            while (nextTerm != null) {
+//                int freq = getTermFreqInDoc(nextTerm, i, index);
+//                totalFreq += Math.pow((double) freq, 2);
+//                nextTerm = termsEnum.next().utf8ToString();
+//                System.out.println(testi ++);   // todo: delete
 //            }
-//
-//            if (searchResults.get(i).getDocno().equals("ACM-2187890")) {
-//                System.out.println("ACM-2187890 is " + Double.toString(searchResults.get(i).getScore()));
-//            }
-//            if (searchResults.get(i).getDocno().equals("ACM-2124339")) {
-//                System.out.println("ACM-2124339 is " + Double.toString(searchResults.get(i).getScore()));
-//            }
-//        }
 
-        return searchResults;
+            String nextTerm;
+            BytesRef nextBytesRefTerm = termsEnum.next();
+            double totalFreq = 0;
+            int testi = 0; // todo: delete
+            while (nextBytesRefTerm != null) {
+                System.out.println("Next term.");
+                nextTerm = nextBytesRefTerm.utf8ToString();
+                int freq = getTermFreqInDoc(nextTerm, i, index);
+                totalFreq += Math.pow((double) freq, 2);
+                nextBytesRefTerm = termsEnum.next();
+//                System.out.println(testi ++);   // todo: delete
+            }
+
+            totalFreq = Math.sqrt(totalFreq);
+            String docno = LuceneUtils.getDocno( index, "docno", i );
+
+            double score = 2.0 / totalFreq;
+
+            searchResults.add(new SearchResult(i, docno, score));
+        }
+
+
+
+
+
+
+
+        return null;
     }
+
+
 
 }
